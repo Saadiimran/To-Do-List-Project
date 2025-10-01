@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["../frontend/src/*"]
+    }
+  },
+  "exclude": ["../vue-project/node_modules", "../frontend/dist"]
+}
