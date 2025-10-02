@@ -1,80 +1,17 @@
 <template>
   <div class="min-h-screen">
-    <div
-      class="flex sticky top-0 left-0 items-center justify-between md:justify-evenly h-20 shadow px-5 z-10 bg-white"
+    <Navbar
+      v-model:open="open"
+      :username="username"
+      :email="email"
+      :day="day"
+      :date="date"
+      @search="onSearch"
     >
-      <div class="">
-        <a href="#">
-          <h1 class="text-xl md:text-3xl font-medium">
-            <span class="text-blue-600">To</span>-Do
-          </h1>
-        </a>
-      </div>
-
-      <div class="flex items-center gap-2 w-3/6">
-        <input
-          type="text"
-          class="rounded shadow px-2 h-8 w-5/6 md:h-10 md:w-6/7 text-xs md:text-sm"
-          placeholder="Search your tasks here"
-        />
-        <button
-          class="bg-blue-600 rounded-lg md:rounded-xl p-1 md:px-3 md:py-2 text-white shadow-md cursor-pointer"
-        >
-          <i class="fa-solid fa-magnifying-glass"></i>
-        </button>
-      </div>
-      <div class="hidden md:flex md:items-center gap-3">
-        <button
-          class="text-white bg-blue-600 rounded-xl h-8 w-8 cursor-pointer"
-        >
-          <i class="fa-solid fa-bell"></i>
-        </button>
-        <button
-          class="text-white bg-blue-600 rounded-xl h-8 w-8 cursor-pointer"
-        >
-          <i class="fa-solid fa-calendar-days"></i>
-        </button>
-        <div class="md:flex md:flex-col">
-          <p class="font-medium">{{ day }}</p>
-          <p class="text-blue-400">{{ date }}</p>
-        </div>
-      </div>
-      <button class="z-50 md:hidden" @click="open = !open">
-        <i v-if="open === false" class="fa-solid fa-bars"></i>
-        <i v-else class="fa-solid fa-xmark text-white"></i>
-      </button>
-      <div
-        :class="[
-          'fixed top-0 right-0 h-full w-50 z-40 transform transition-transform duration-300 bg-blue-600 shadow-lg',
-          open ? 'translate-x-0' : 'translate-x-full',
-          'md:hidden',
-        ]"
-      >
-        <div class="fixed top-20 pl-5 flex flex-col gap-3 z-40">
-          <div class="flex flex-row items-center text-white cursor-pointer">
-            <i class="fa-solid fa-bell"></i>
-            <p class="ml-4">Notifications</p>
-          </div>
-          <div class="flex flex-row items-center text-white">
-            <i class="fa-solid fa-calendar-days text-white"></i>
-            <p class="ml-4">Calendar</p>
-          </div>
-          <div class="flex flex-row items-center text-white">
-            <i class="fa-solid fa-gear"></i>
-            <p class="ml-4">Settings</p>
-          </div>
-
-          <div class="flex flex-row items-center text-white">
-            <i class="fa-solid fa-circle-info"></i>
-            <p class="ml-4">Help</p>
-          </div>
-          <div class="md:flex md:flex-col text-white">
-            <p class="font-medium">{{ day }}</p>
-            <p class="text-blue-200">{{ date }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
+      <template #mobile-menu>
+        <SideBar />
+      </template>
+    </Navbar>
     <div class="max-w-full flex">
       <div
         class="w-2/10 hidden md:flex md:flex-col items-center rounded bg-blue-600 max-h-full text-white"
@@ -88,70 +25,8 @@
           <h1>{{ username }}</h1>
           <p>{{ email }}</p>
         </div>
-        <div class="pl-5 mt-5 rounded-2xl w-full font-medium">
-          <button
-            class="hover:text-blue-600 hover:bg-white py-2 rounded-xl text-left pl-2 w-8/10 cursor-pointer"
-          >
-            <i class="fa-solid fa-table-columns"></i>
-            Dashboard
-          </button>
-        </div>
-        <SidebarItem
-          label="Dashboard"
-          icon="fa-solid fa-table-columns"
-          :active="activeId === 'dashboard'"
-          @select="onSelect('Dashboard')"
-        />
-        <div class="pl-5 rounded-2xl w-full font-medium">
-          <button
-            class="text-white py-2 rounded-xl text-left pl-2 w-8/10 cursor-pointer hover:text-blue-600 hover:bg-white"
-          >
-            <i class="fa-solid fa-lightbulb"></i>
-            Vital Task
-          </button>
-        </div>
-        <div class="pl-5 rounded-2xl w-full font-medium">
-          <button
-            class="py-2 rounded-xl text-left pl-2 w-8/10 cursor-pointer hover:text-blue-600 hover:bg-white"
-          >
-            <i class="fa-solid fa-square-check"></i>
-            My Task
-          </button>
-        </div>
-        <div class="pl-5 rounded-2xl w-full font-medium">
-          <button
-            class="py-2 rounded-xl text-left pl-2 w-8/10 cursor-pointer hover:text-blue-600 hover:bg-white"
-          >
-            <i class="fa-solid fa-list"></i>
-            Task Categories
-          </button>
-        </div>
-        <div class="pl-5 rounded-2xl w-full font-medium">
-          <button
-            class="py-2 rounded-xl text-left pl-2 w-8/10 cursor-pointer hover:text-blue-600 hover:bg-white"
-          >
-            <i class="fa-solid fa-gear"></i>
-            Settings
-          </button>
-        </div>
-        <div class="pl-5 rounded-2xl w-full font-medium">
-          <button
-            class="py-2 rounded-xl text-left pl-2 w-8/10 cursor-pointer hover:text-blue-600 hover:bg-white"
-          >
-            <i class="fa-solid fa-circle-info"></i>
-            Help
-          </button>
-        </div>
-        <div class="pl-5 rounded-2xl w-full font-medium mt-43 mb-5">
-          <button
-            class="py-2 rounded-xl text-left pl-2 w-8/10 cursor-pointer hover:text-blue-600 hover:bg-white"
-          >
-            <i class="fa-solid fa-arrow-right-from-bracket"></i>
-            Logout
-          </button>
-        </div>
+        <SideBar />
       </div>
-
       <div class="flex flex-col md:w-5/10 w-full mt-5">
         <h1 class="text-xl md:text-3xl font-medium ml-8">
           Welcome {{ username }}
@@ -241,7 +116,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import SideBarItem from "./components/SideBarItem.vue";
+import SideBar from "./components/SideBar.vue";
+import Navbar from "./components/Navbar.vue";
 import { useTaskStore } from "./stores/usetaskStore";
 
 const taskStore = useTaskStore();
@@ -301,7 +177,7 @@ const deleteTasks = async (id) => {
   }
 };
 
-const pct = ref(84); // change to any value 0..100
+const pct = ref(84); 
 const thickness = 12; // px: visual thickness of ring (tweak as needed)
 
 // computed inline style for the ring using conic-gradient
