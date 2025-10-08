@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 
 dotenv.config({ path: "./credentials.env" });
 
-const pool = mysql.createPool({
+export const pool = mysql.createPool({
   host: process.env.DB_HOST || "127.0.0.1",
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASS || "",
@@ -23,5 +23,4 @@ const pool = mysql.createPool({
     console.error("❌ DB connection failed:", err.message);
   }
 })();
-
 export default pool;

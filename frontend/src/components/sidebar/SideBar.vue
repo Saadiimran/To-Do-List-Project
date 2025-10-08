@@ -1,7 +1,7 @@
 <template>
   <div>
     <SideBarItems
-      v-for="(item, index) in menuItems"
+      v-for="item in menuItems"
       :key="item.id"
       :label="item.label"
       :icon="item.icon"
