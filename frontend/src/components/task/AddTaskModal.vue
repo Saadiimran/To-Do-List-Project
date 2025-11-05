@@ -174,11 +174,12 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUpdated } from "vue";
 import api from "../../api"; // adjust path if needed
-
+import { useTaskStore } from "@/stores/taskStore";
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
+  initial: { type: [Object, null], default: null },
 });
 const emit = defineEmits(["update:modelValue", "submitted"]);
 
@@ -186,6 +187,8 @@ const show = computed({
   get: () => props.modelValue,
   set: (v) => emit("update:modelValue", v),
 });
+
+const taskStore = useTaskStore();
 
 // form state
 const title = ref("");
@@ -219,12 +222,67 @@ function resetForm() {
 }
 defineExpose({ resetForm });
 
-function onFilesSelected(e) {
+const populateFromInitial = () => {
+  const t = props.initial;
+  if (!t) {
+    resetForm();
+    return;
+  }
+
+  title.value = t.title ?? "";
+  priority.value = t.priority ?? "medium";
+  description.value = t.description ?? "";
+  status.value = t.status ?? "Not Started";
+};
+
+let prevInitialJson = null;
+try {
+  prevInitialJson = props.initial ? JSON.stringify(props.initial) : null;
+} catch {
+  prevInitialJson = props.initial;
+}
+
+onMounted(() => {
+  if (props.modelValue) {
+    populateFromInitial();
+  } else {
+    resetForm();
+  }
+});
+
+// onUpdated handles (a) modal open/close and (b) initial prop changes
+onUpdated(() => {
+  // 1) Modal open/close change: when modelValue flips true -> open, populate
+  //    when it becomes false -> reset (clean up)
+  if (props.modelValue) {
+    // if opening: populate form (for edit) or reset (for create)
+    populateFromInitial();
+  } else {
+    // closed: clear form to avoid stale values
+    resetForm();
+  }
+
+  // 2) Detect changes to initial prop (deepish compare via JSON)
+  let currentInitialJson = null;
+  try {
+    currentInitialJson = props.initial ? JSON.stringify(props.initial) : null;
+  } catch {
+    currentInitialJson = props.initial;
+  }
+
+  if (currentInitialJson !== prevInitialJson) {
+    // only re-populate if modal currently open (avoid auto-opening)
+    if (props.modelValue) populateFromInitial();
+    prevInitialJson = currentInitialJson;
+  }
+});
+
+const onFilesSelected = (e) => {
   const selected = Array.from(e.target.files || []);
   if (selected.length === 0) return;
   handleNewFiles(selected);
   e.target.value = "";
-}
+};
 
 function handleDrop(event) {
   const selectedFiles = Array.from(event.dataTransfer.files || []);
@@ -320,7 +378,7 @@ async function onSubmit() {
       title: title.value.trim(),
       priority: priority.value,
       description: description.value.trim(),
-      images: dataUrls,
+      image_path: dataUrls,
     };
 
     const res = await api.post("/tasks", payload, {

@@ -6,7 +6,7 @@
       :label="item.label"
       :icon="item.icon"
       :active="activeId === item.id"
-      @select="onSelect(item.id)"
+      @select="() => item.id === 'logout' && onSelect(item.id)"
       :class="item.class"
     />
   </div>
@@ -57,15 +57,15 @@ const menuItems = [
   },
 ];
 
-function onSelect(id) {
+const onSelect = (id) => {
   activeId.value = id;
-    const ok = confirm("Are you sure you want to logout?");
-    if (!ok) return;
+  const ok = confirm("Are you sure you want to logout?");
+  if (!ok) return;
 
   try {
     if (id === "logout") {
       authStore.logout();
-      window.location.reload();
+      window.location.replace("signin");
     }
   } catch (err) {
     console.error("Logout failed:", err);

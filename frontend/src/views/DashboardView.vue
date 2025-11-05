@@ -14,7 +14,7 @@
 
     <div class="max-w-full flex">
       <div
-        class="w-2/10 hidden md:flex md:flex-col items-center rounded bg-blue-600 text-white sticky  top-20 h-screen"
+        class="w-2/10 hidden md:flex md:flex-col items-center rounded bg-blue-600 text-white sticky top-20 h-screen"
       >
         <img
           src="../assets/avatar.png"
@@ -64,12 +64,27 @@
                   <TaskCard
                     v-for="task in taskStore.tasks"
                     :key="task.id"
+                    :id="task.id"
                     :title="task.title"
                     :priority="task.priority"
                     :description="task.description"
                     :status="task.status || ''"
                     :images="task.images || []"
                     :created-at="task.created_at || task.createdAt || ''"
+                    @edit="onEdit"
+                  />
+                </div>
+
+                <div v-if="editingTask">
+                  <AddTaskModal
+                    v-model="showAddModal"
+                    :initial="editingTask"
+                    @submitted="onSaved"
+                    @update:modelValue="
+                      (val) => {
+                        if (!val) editingTask.value = null;
+                      }
+                    "
                   />
                 </div>
               </template>
@@ -147,18 +162,19 @@ import Navbar from "../components/Navbar.vue";
 import { useRoute } from "vue-router";
 import { useAuthStore } from "../stores/authStore";
 import { useTaskStore } from "../stores/taskStore";
-import AddTaskModal from "./task/AddTaskModal.vue";
-import TaskCard from "./task/TaskCard.vue";
-
+import AddTaskModal from "@/components/task/AddTaskModal.vue";
+import TaskCard from "@/components/task/TaskCard.vue";
 const route = useRoute();
 const auth = useAuthStore();
 const taskStore = useTaskStore();
 
+const editingTask = ref(null);
 const day = ref("");
 const date = ref("");
 const open = ref(false);
 const showAddModal = ref(false);
 const addTaskModalRef = ref(null);
+const showCreate = ref("");
 const toast = ref({
   show: false,
   title: "",
@@ -166,20 +182,19 @@ const toast = ref({
   type: "success",
   timeoutId: null,
 });
-const placeholder = "/images/avatar-placeholder.png";
 
 const username = computed(() => {
   const u = auth.user;
   if (!u) return "your username";
 
-  return u.first_name + " " + u.last_name;
+  return u.firstName + " " + u.lastName;
 });
 
 const firstName = computed(() => {
   const u = auth.user;
   if (!u) return "your username";
 
-  return u.first_name;
+  return u.firstName;
 });
 
 const email = computed(() => {
@@ -209,6 +224,35 @@ function showToast({
     toast.value.show = false;
     toast.value.timeoutId = null;
   }, duration);
+}
+
+function openCreate() {
+  editingTask.value = null;
+  showCreate.value = true;
+  showAddModal.value = true;
+}
+
+function onEdit(task) {
+  editingTask.value = task;
+  showCreate.value = false;
+  showAddModal.value = true;
+}
+
+function closeEditor() {
+  editingTask.value = null;
+  showCreate.value = false;
+  showAddModal.value = false;
+}
+
+async function onSaved(savedTask) {
+  // savedTask: the updated/created task returned by TaskEditor
+  // refresh local list or update item in-place
+  try {
+    await store.fetchTasks();
+  } catch (err) {
+    console.log("Failed refreshing due to: ", err);
+  }
+  closeEditor();
 }
 
 function hideToast() {
@@ -271,7 +315,7 @@ onMounted(async () => {
   if (auth.user && auth.user.id) {
     try {
       await taskStore.fetchTasks();
-    } catch (error) {
+    } catch (err) {
       console.error("Failed to load tasks:", err);
       showToast({
         title: "Error",

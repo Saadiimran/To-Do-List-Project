@@ -18,7 +18,7 @@ import { CreateTodoDto } from './Dto/create-todo.dto';
 import { UpdateTodoDto } from './Dto/update-todo.dto';
 import { AuthGuard } from '@nestjs/passport';
 
-@Controller('task')
+@Controller('tasks')
 export class TodosController {
   constructor(private readonly todosService: TodosService) {}
 
@@ -26,15 +26,15 @@ export class TodosController {
   @Post()
   @UsePipes(new ValidationPipe({ whitelist: true }))
   create(@Body() dto: CreateTodoDto, @Req() req: any) {
-    const userId = req.user?.id;
-
+    const userId = Number(req.user?.id ?? req.user?.sub);
     return this.todosService.create(dto, userId);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get()
-  findAll() {
-    return this.todosService.findAll();
+  async findAll(@Req() req) {
+    const userId = req.user?.id; // depends on your auth guard
+    return this.todosService.findAll(userId);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -44,13 +44,13 @@ export class TodosController {
   }
 
   @UseGuards(AuthGuard('jwt'))
-  @Patch('id')
+  @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTodoDto) {
     return this.todosService.update(id, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
-  @Delete('id')
+  @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     this.todosService.remove(id);
     return { success: true };

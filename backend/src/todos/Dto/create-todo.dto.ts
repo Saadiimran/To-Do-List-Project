@@ -3,9 +3,6 @@ import type { TodoPriority } from '../todo.model';
 import type { TodoStatus } from '../todo.model';
 
 export class CreateTodoDto {
-  @IsNumber()
-  userId: number;
-
   @IsString()
   @Length(1, 100)
   title?: string;
@@ -20,10 +17,10 @@ export class CreateTodoDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
-  imageUrl?: string;
+  @IsString({ each: true })
+  image_path?: string[];
 
   @IsOptional()
-  @IsIn(['not-started', 'in-progress', 'completed'])
+  @IsIn(['Not Started', 'In Progress', 'Completed'])
   status?: TodoStatus;
 }

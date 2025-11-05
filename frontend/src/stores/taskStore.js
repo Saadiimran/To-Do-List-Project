@@ -2,6 +2,15 @@
 import { defineStore } from "pinia";
 import api from "../api.js";
 
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("File read error"));
+    reader.onload = () => resolve(reader.result); // "data:image/..;base64,...."
+    reader.readAsDataURL(file);
+  });
+}
+
 export const useTaskStore = defineStore("tasks", {
   state: () => ({
     tasks: [],
@@ -14,7 +23,6 @@ export const useTaskStore = defineStore("tasks", {
     },
   },
   actions: {
-    // helper to normalize a raw server task row into a frontend-friendly object
     normalizeTask(raw) {
       // extract images: backend may return `images` array or a JSON string in `img_path` / `image_path`
       let images = [];
@@ -33,14 +41,13 @@ export const useTaskStore = defineStore("tasks", {
           images = [];
         }
       }
-
       return {
         id: raw.id,
         user_id: raw.user_id,
         title: raw.title,
         priority: raw.priority,
         description: raw.description,
-        status: raw.status ?? "open",
+        status: raw.status ?? "Not Started",
         created_at: raw.created_at ?? raw.createdAt ?? null,
         images,
         raw, // keep raw for debugging if needed
@@ -52,11 +59,10 @@ export const useTaskStore = defineStore("tasks", {
       this.loading = true;
       this.error = null;
       try {
-        const res = await api.findAll();
-        // Debug log to inspect shape
+        const res = await api.get("/tasks");
+        // debug
         console.log("DEBUG: GET /tasks response:", res.data);
 
-        // Accept either top-level array or { tasks: [...] }
         const payload = res.data;
         const serverTasks = Array.isArray(payload)
           ? payload
@@ -74,22 +80,40 @@ export const useTaskStore = defineStore("tasks", {
         this.loading = false;
       }
     },
-
-    // POST /tasks - payload should be { title, priority, description, images: [dataUrl,...] }
     async createTask(payload) {
       this.loading = true;
       this.error = null;
       try {
-        const res = await api.post("/tasks", payload);
-        // if backend returns created task object, normalize & prepend it
+        // payload expected: { title, priority, description, files: FileList|File[] (optional) }
+        const dto = {
+          title: payload.title,
+          priority: payload.priority,
+          description: payload.description,
+          status: payload.status,
+        };
+
+        // If files provided, convert to base64 data URLs
+        if (payload.files && payload.files.length) {
+          const files = Array.from(payload.files);
+          const base64Arr = [];
+          for (const f of files) {
+            // optional: small size/type guard
+            if (!f.type.startsWith("image/"))
+              throw new Error("Only images allowed");
+            // await conversion — this is the important bit
+            const url = await fileToDataUrl(f);
+            base64Arr.push(url);
+          }
+          dto.image_path = base64Arr; // must be array of strings
+        }
+
+        const res = await api.post("/tasks", dto); // axios sends JSON by default
         if (res.data && (res.data.id || res.data.task)) {
           const serverTask = res.data.task ?? res.data;
           const normalized = this.normalizeTask(serverTask);
-          // put newest on top
           this.tasks.unshift(normalized);
           return res.data;
         }
-        // fallback: refresh list
         await this.fetchTasks();
         return res.data;
       } catch (err) {
@@ -109,7 +133,6 @@ export const useTaskStore = defineStore("tasks", {
         const res = await api.patch(`/tasks/${id}`, patch);
         const idx = this.tasks.findIndex((t) => t.id === id);
         if (idx !== -1) {
-          // merge server response if provided, else merge patch locally
           const updated =
             res.data && (res.data.id || res.data.updated)
               ? this.normalizeTask(res.data)

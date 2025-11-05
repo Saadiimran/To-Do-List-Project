@@ -1,3 +1,4 @@
+// src/stores/authStore.js
 import { defineStore } from "pinia";
 import api from "../api";
 
@@ -48,11 +49,11 @@ export const useAuthStore = defineStore("auth", {
     error: null,
   }),
   actions: {
+    // simply set token in localStorage + axios header
     setToken(token) {
       this.token = token || null;
       if (token) {
         localStorage.setItem("token", token);
-        // set default header for immediate use
         api.defaults.headers.common.Authorization = `Bearer ${token}`;
       } else {
         localStorage.removeItem("token");
@@ -66,17 +67,28 @@ export const useAuthStore = defineStore("auth", {
       else localStorage.removeItem("user");
     },
 
+    // call this once on app startup (in main.js)
+    initialize() {
+      if (this.token) {
+        api.defaults.headers.common.Authorization = `Bearer ${this.token}`;
+      } else {
+        delete api.defaults.headers.common.Authorization;
+      }
+    },
+
     async signup(payload) {
       this.loading = true;
       this.error = null;
       try {
         const res = await api.post("/auth/signup", {
-          firstname: payload.firstname,
-          lastname: payload.lastname,
+          firstName: payload.firstname,
+          lastName: payload.lastname,
           email: payload.email,
           password: payload.password,
+          confirmPassword: payload.confirmpassword, // map confirm field
         });
-        const { token, user } = res.data;
+        const token = res.data?.token ?? res.data?.access_token ?? null;
+        const user = res.data?.user ?? null;
         this.setToken(token);
         this.setUser(user || null);
         return { success: true, user };
@@ -97,7 +109,18 @@ export const useAuthStore = defineStore("auth", {
           email: payload.email,
           password: payload.password,
         });
-        const { token, user } = res.data;
+        const token = res.data?.token ?? res.data?.access_token ?? null;
+        const user = res.data?.user ?? null;
+        if (!token) {
+          const parsed = parseAxiosError({
+            response: {
+              status: 401,
+              data: { message: "Authentication failed" },
+            },
+          });
+          this.error = parsed.message;
+          return { success: false, errors: parsed };
+        }
         this.setToken(token);
         this.setUser(user || null);
         return { success: true, user };
@@ -110,8 +133,8 @@ export const useAuthStore = defineStore("auth", {
       }
     },
 
+    // verifies token by calling backend; clears on failure
     async fetchMe() {
-      // if we have no token, try to restore user from localStorage then bail
       if (!this.token) {
         const raw = localStorage.getItem("user");
         if (raw) {
@@ -120,13 +143,14 @@ export const useAuthStore = defineStore("auth", {
         }
         return null;
       }
+
       this.loading = true;
       this.error = null;
       try {
-        // ensure header is set (in case page refreshed and we didn't set header)
         api.defaults.headers.common.Authorization = `Bearer ${this.token}`;
         const res = await api.get("/auth/me");
-        this.setUser(res.data.user);
+        const serverUser = res.data?.user ?? res.data;
+        this.setUser(serverUser);
         return this.user;
       } catch (err) {
         // token invalid/expired -> clear everything
@@ -140,7 +164,9 @@ export const useAuthStore = defineStore("auth", {
     logout() {
       this.setToken(null);
       this.setUser(null);
-      this.localStorage(null);
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      
     },
   },
 });

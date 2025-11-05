@@ -10,7 +10,8 @@ const pinia = createPinia();
 app.use(pinia);
 app.use(router);
 
-const auth = useAuthStore(pinia); // or import and call after mounting
+const auth = useAuthStore(pinia);
+auth.initialize();
 if (localStorage.getItem("token")) {
   await auth.fetchMe().catch(() => {});
 }

@@ -21,7 +21,9 @@ export class TodosService {
       priority: row.priority,
       description: row.description,
       status: row.status,
-      imageUrl: row.image_url ?? row.imageUrl ?? null,
+      // normalize DB column image_path -> expose both image_path and imageUrl for frontend compatibility
+      image_path: row.image_path ?? row.imageUrl ?? row.image_url ?? null,
+      imageUrl: row.image_path ?? row.imageUrl ?? row.image_url ?? null,
       createdAt: row.created_at
         ? new Date(row.created_at).toISOString()
         : new Date().toISOString(),
@@ -32,44 +34,75 @@ export class TodosService {
   }
 
   async create(dto: CreateTodoDto, userId: number): Promise<Todo> {
-    if (!userId) {
+    if (!userId)
       throw new BadRequestException('Authenticated user id required');
-    }
+
+    const pool = this.db.getPool();
+    const now = new Date();
 
     try {
-      const pool = this.db.getPool();
-      const now = new Date();
-      const [result]: any = await pool.query(
-        `INSERT INTO tasks
-         (title, priority, description, status, image_path, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          dto.title || '',
-          dto.priority || 'medium',
-          dto.description || '',
-          dto.status || 'not-started',
-          dto.imageUrl || null,
-          now,
-        ],
-      );
-      const insertId = result.insertId;
-      const [rows]: any = await pool.query('SELECT * FROM todos WHERE id = ?', [
+      // simple: accept image_path as array OR string (JSON or plain)
+      let imageJson: string | null = null;
+      if (dto.image_path) {
+        if (Array.isArray(dto.image_path)) {
+          imageJson = JSON.stringify(dto.image_path);
+        } else if (typeof dto.image_path === 'string') {
+          try {
+            const parsed = JSON.parse(dto.image_path);
+            imageJson = JSON.stringify(
+              Array.isArray(parsed) ? parsed : [parsed],
+            );
+          } catch {
+            imageJson = JSON.stringify([dto.image_path]);
+          }
+        }
+      }
+
+      const sql = `INSERT INTO tasks
+      (user_id, title, priority, description, status, image_path, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`;
+
+      const params = [
+        userId,
+        dto.title ?? '',
+        dto.priority ?? 'medium',
+        dto.description ?? '',
+        dto.status ?? 'Not Started',
+        imageJson,
+        now,
+      ];
+
+      const [result]: any = await pool.query(sql, params);
+      const insertId = result?.insertId;
+      if (!insertId)
+        throw new InternalServerErrorException('Failed to insert task');
+
+      const [rows]: any = await pool.query('SELECT * FROM tasks WHERE id = ?', [
         insertId,
       ]);
       if (!rows || rows.length === 0)
-        throw new InternalServerErrorException('Failed to fetch created todo');
+        throw new InternalServerErrorException('Inserted task not found');
+
       return this.mapRowToTodo(rows[0]);
     } catch (err) {
-      throw err;
+      // keep errors simple and consistent
+      console.error('create task error', err);
+      if (err?.status) throw err;
+      throw new InternalServerErrorException('Failed to create task');
     }
   }
 
-  async findAll(): Promise<Todo[]> {
+  async findAll(userId: number): Promise<Todo[]> {
+    if (!userId)
+      throw new BadRequestException('Authenticated user id required');
+
     const pool = this.db.getPool();
     const [rows]: any = await pool.query(
-      'SELECT * FROM tasks ORDER BY created_at DESC',
+      'SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC',
+      [userId],
     );
-    return (rows || []).map((r) => this.mapRowToTodo(r));
+
+    return rows.map((r) => this.mapRowToTodo(r));
   }
 
   // FIND BY ID
@@ -133,14 +166,20 @@ export class TodosService {
     return this.findById(id);
   }
 
-  // REMOVE
   async remove(id: number): Promise<void> {
     const pool = this.db.getPool();
-    const [result]: any = await pool.query('DELETE FROM todos WHERE id = ?', [
-      id,
-    ]);
-    if (result.affectedRows === 0) {
-      throw new NotFoundException('No such task with id ' + id);
+    try {
+      const [result]: any = await pool.query('DELETE FROM tasks WHERE id = ?', [
+        id,
+      ]);
+      if (!result || result.affectedRows === 0) {
+        throw new NotFoundException('No such task with id ' + id);
+      }
+      return;
+    } catch (err) {
+      if (err?.status) throw err;
+      console.error('Remove task error ->', err);
+      throw new InternalServerErrorException('Failed to delete task');
     }
   }
 }

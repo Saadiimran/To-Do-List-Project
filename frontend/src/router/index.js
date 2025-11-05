@@ -3,7 +3,7 @@ import { createRouter, createWebHistory } from "vue-router";
 const DashboardView = () => import("../views/DashboardView.vue");
 const SignupView = () => import("../views/SignUpView.vue");
 const SigninView = () => import("../views/SignInView.vue");
-const AddTask = () => import("../views/task/AddTaskModal.vue");
+const AddTask = () => import("../components/task/AddTaskModal.vue");
 
 const routes = [
   {
