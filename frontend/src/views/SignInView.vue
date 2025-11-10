@@ -22,7 +22,7 @@ const router = useRouter();
 const route = useRoute();
 const globalError = ref(null);
 
-async function handleSubmit(payload) {
+const handleSubmit = async (payload) => {
   globalError.value = null;
   try {
     const result = await auth.signin(payload);

@@ -20,4 +20,19 @@ api.interceptors.request.use((cfg) => {
   return cfg;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Token expired or invalid
+      console.warn("JWT expired or unauthorized. Logging out...");
+      localStorage.removeItem("token");
+
+      // Redirect to sign-in page
+      router.push("/signin"); // or /login, depending on your route name
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

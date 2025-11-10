@@ -27,7 +27,7 @@ const globalError = ref(null);
 const serverError = ref(null);
 const loading = ref(false);
 
-async function handleSubmit(payload) {
+const handleSubmit = async (payload) => {
   globalError.value = null;
   serverError.value = null;
   loading.value = true;

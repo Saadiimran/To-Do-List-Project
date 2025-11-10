@@ -90,6 +90,7 @@ export const useTaskStore = defineStore("tasks", {
           priority: payload.priority,
           description: payload.description,
           status: payload.status,
+          image_path: payload.image_path,
         };
 
         // If files provided, convert to base64 data URLs

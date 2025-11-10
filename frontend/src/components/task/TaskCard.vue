@@ -48,7 +48,6 @@ import { computed } from "vue";
 import { useAuthStore } from "@/stores/authStore";
 import { useTaskStore } from "@/stores/taskStore";
 
-// props (include id)
 const props = defineProps({
   id: { type: [Number, String], required: true },
   title: { type: String, default: "" },
@@ -59,14 +58,11 @@ const props = defineProps({
   createdAt: { type: [String, Date], default: "" },
 });
 
-// allow emitting 'deleted' to parent
 const emit = defineEmits(["deleted", "edit"]);
 
-// stores
 const taskStore = useTaskStore();
 const authStore = useAuthStore();
 
-// computed
 const created = computed(() => {
   const date = new Date(props.createdAt || Date.now());
   return date.toLocaleDateString();
@@ -77,7 +73,7 @@ const firstImage = computed(() => {
 });
 
 // delete handler uses props.id
-async function onDelete() {
+const onDelete = async () => {
   const ok = confirm("Are you sure you want to delete this task?");
   if (!ok) return;
 
@@ -91,7 +87,7 @@ async function onDelete() {
   }
 }
 
-function editTask() {
+const editTask = () => {
   emit("edit", {
     id: props.id,
     title: props.title,

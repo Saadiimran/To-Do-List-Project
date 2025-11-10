@@ -46,7 +46,7 @@
               </div>
               <div class="flex items-center" @click="openAddModal">
                 <i class="fa-solid fa-plus text-xs text-blue-600"></i>
-                <button class="text-gray-500 text-sm">Add Task</button>
+                <button class="text-gray-500 text-sm cursor-pointer">Add Task</button>
               </div>
             </div>
             <div
@@ -72,19 +72,6 @@
                     :images="task.images || []"
                     :created-at="task.created_at || task.createdAt || ''"
                     @edit="onEdit"
-                  />
-                </div>
-
-                <div v-if="editingTask">
-                  <AddTaskModal
-                    v-model="showAddModal"
-                    :initial="editingTask"
-                    @submitted="onSaved"
-                    @update:modelValue="
-                      (val) => {
-                        if (!val) editingTask.value = null;
-                      }
-                    "
                   />
                 </div>
               </template>
@@ -122,9 +109,14 @@
 
           <!-- the modal component -->
           <AddTaskModal
-            ref="addTaskModalRef"
             v-model="showAddModal"
-            @submitted="handleAddTaskSubmitted"
+            :initial="editingTask"
+            @submitted="onSaved"
+            @update:modelValue="
+              (val) => {
+                if (!val) editingTask.value = null;
+              }
+            "
           />
 
           <div class="w-5/10 flex flex-col gap-5 mt-5">
@@ -202,12 +194,12 @@ const email = computed(() => {
   return (u && u.email) || "abc@example.com";
 });
 
-function showToast({
+const showToast = ({
   title = "",
   message = "",
   type = "success",
   duration = 3500,
-}) {
+}) => {
   // clear any previous timeout
   if (toast.value.timeoutId) {
     clearTimeout(toast.value.timeoutId);
@@ -224,44 +216,42 @@ function showToast({
     toast.value.show = false;
     toast.value.timeoutId = null;
   }, duration);
-}
+};
 
-function openCreate() {
+const openCreate = () => {
   editingTask.value = null;
   showCreate.value = true;
   showAddModal.value = true;
-}
+};
 
-function onEdit(task) {
+const onEdit = (task) => {
   editingTask.value = task;
   showCreate.value = false;
   showAddModal.value = true;
-}
+};
 
-function closeEditor() {
+const closeEditor = () => {
   editingTask.value = null;
   showCreate.value = false;
   showAddModal.value = false;
-}
+};
 
-async function onSaved(savedTask) {
-  // savedTask: the updated/created task returned by TaskEditor
-  // refresh local list or update item in-place
+const onSaved = async (savedTask) => {
   try {
-    await store.fetchTasks();
+    await taskStore.fetchTasks();
   } catch (err) {
     console.log("Failed refreshing due to: ", err);
   }
   closeEditor();
-}
+};
 
-function hideToast() {
+const hideToast = () => {
   if (toast.value.timeoutId) clearTimeout(toast.value.timeoutId);
   toast.value.show = false;
   toast.value.timeoutId = null;
-}
+};
 
-function handleAddTaskSubmitted(result) {
+const handleAddTaskSubmitted = (result) => {
   const r = result || {};
   if (r.ok) {
     showToast({
@@ -301,7 +291,7 @@ function handleAddTaskSubmitted(result) {
   } else {
     showToast({ title: "Error", message: msg, type: "error" });
   }
-}
+};
 
 onMounted(async () => {
   const now = new Date();
@@ -343,7 +333,7 @@ const ringStyle = computed(() => {
   };
 });
 
-function openAddModal() {
+const openAddModal = () => {
   if (!auth.user || !auth.user.id) {
     showToast({
       title: "Sign in required",
@@ -360,7 +350,7 @@ function openAddModal() {
     addTaskModalRef.value.resetForm();
   }
   showAddModal.value = true;
-}
+};
 </script>
 
 <style scoped></style>

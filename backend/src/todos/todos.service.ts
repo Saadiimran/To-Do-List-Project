@@ -117,7 +117,6 @@ export class TodosService {
     return this.mapRowToTodo(rows[0]);
   }
 
-  // UPDATE (partial)
   async update(id: number, dto: UpdateTodoDto): Promise<Todo> {
     // ensure the record exists
     const existing = await this.findById(id); // will throw NotFoundException if not found
@@ -142,16 +141,38 @@ export class TodosService {
       fields.push('status = ?');
       values.push(dto.status);
     }
-    if (dto.imageUrl !== undefined) {
-      fields.push('image_url = ?');
-      values.push(dto.imageUrl);
-    }
 
+    // --- NEW: handle image_path from frontend (array|string|null) ---
+    if (dto.image_path !== undefined) {
+      let imageJson: string | null = null;
+
+      if (Array.isArray(dto.image_path)) {
+        imageJson = dto.image_path.length
+          ? JSON.stringify(dto.image_path)
+          : null;
+      } else if (typeof dto.image_path === 'string') {
+        try {
+          const parsed = JSON.parse(dto.image_path);
+          imageJson =
+            Array.isArray(parsed) && parsed.length
+              ? JSON.stringify(parsed)
+              : null;
+        } catch {
+          // not JSON -> treat as single URL string
+          imageJson = dto.image_path ? JSON.stringify([dto.image_path]) : null;
+        }
+      } else if (dto.image_path == null) {
+        imageJson = null;
+      }
+
+      fields.push('image_path = ?');
+      values.push(imageJson);
+    }
     if (fields.length === 0) {
-      // nothing to update, return existing
       return existing;
     }
 
+    // updated_at
     fields.push('updated_at = ?');
     values.push(new Date());
 
@@ -160,7 +181,12 @@ export class TodosService {
 
     const sql = `UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`;
     const pool = this.db.getPool();
-    await pool.query(sql, values);
+    try {
+      await pool.query(sql, values);
+    } catch (err) {
+      console.error('Update task SQL error', err);
+      throw err;
+    }
 
     // return the fresh row
     return this.findById(id);

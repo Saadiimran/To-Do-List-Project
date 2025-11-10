@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length, IsIn } from 'class-validator';
+import { IsOptional, IsString, Length, IsIn, IsArray } from 'class-validator';
 import type { Todo, TodoPriority } from '../todo.model';
 import type { TodoStatus } from '../todo.model';
 
@@ -22,6 +22,7 @@ export class UpdateTodoDto {
   status?: TodoStatus;
 
   @IsOptional()
-  @IsString()
-  imageUrl?: string;
+  @IsArray()
+  @IsString({ each: true })
+  image_path?: string;
 }

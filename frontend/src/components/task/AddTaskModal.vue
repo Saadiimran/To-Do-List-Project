@@ -175,8 +175,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onUpdated } from "vue";
-import api from "../../api"; // adjust path if needed
 import { useTaskStore } from "@/stores/taskStore";
+import api from "../../api"; // keep if you use direct api
+
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   initial: { type: [Object, null], default: null },
@@ -194,26 +195,26 @@ const taskStore = useTaskStore();
 const title = ref("");
 const priority = ref("medium");
 const description = ref("");
-const files = ref([]);
-const previews = ref([]);
+const previews = ref([]); // array of { url, isNew: boolean, file?: File, name?, size? }
 const errors = ref({ title: null });
 const formError = ref(null);
 const submitting = ref(false);
 const fileInput = ref(null);
+
 const MAX_FILES = 8;
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
-const status = ref("idle");
-const errorInfo = ref(null);
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 function resetForm() {
   title.value = "";
   priority.value = "medium";
   description.value = "";
-  files.value = [];
+  // revoke objectURLs for new previews
   previews.value.forEach((p) => {
-    try {
-      URL.revokeObjectURL(p.url);
-    } catch {}
+    if (p.isNew && p.url) {
+      try {
+        URL.revokeObjectURL(p.url);
+      } catch {}
+    }
   });
   previews.value = [];
   errors.value = { title: null };
@@ -222,19 +223,8 @@ function resetForm() {
 }
 defineExpose({ resetForm });
 
-const populateFromInitial = () => {
-  const t = props.initial;
-  if (!t) {
-    resetForm();
-    return;
-  }
-
-  title.value = t.title ?? "";
-  priority.value = t.priority ?? "medium";
-  description.value = t.description ?? "";
-  status.value = t.status ?? "Not Started";
-};
-
+// populate when opening or when initial changes
+const prevShow = ref(Boolean(props.modelValue));
 let prevInitialJson = null;
 try {
   prevInitialJson = props.initial ? JSON.stringify(props.initial) : null;
@@ -242,44 +232,68 @@ try {
   prevInitialJson = props.initial;
 }
 
+function populateFromInitial() {
+  const t = props.initial;
+  if (!t) {
+    resetForm();
+    return;
+  }
+  title.value = t.title ?? "";
+  priority.value = t.priority ?? "medium";
+  description.value = t.description ?? "";
+
+  // fill previews with existing image urls (isNew: false)
+  previews.value = [];
+  const existing = t.image_path ?? t.images ?? t.imageUrl ?? null;
+  if (existing) {
+    let arr = [];
+    if (Array.isArray(existing)) arr = existing;
+    else if (typeof existing === "string") {
+      try {
+        const parsed = JSON.parse(existing);
+        arr = Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        arr = [existing];
+      }
+    }
+    for (const u of arr) {
+      if (u) previews.value.push({ url: u, isNew: false });
+    }
+  }
+}
+
 onMounted(() => {
-  if (props.modelValue) {
-    populateFromInitial();
-  } else {
-    resetForm();
-  }
+  if (props.modelValue) populateFromInitial();
 });
 
-// onUpdated handles (a) modal open/close and (b) initial prop changes
 onUpdated(() => {
-  // 1) Modal open/close change: when modelValue flips true -> open, populate
-  //    when it becomes false -> reset (clean up)
-  if (props.modelValue) {
-    // if opening: populate form (for edit) or reset (for create)
+  // detect modal opening false->true
+  if (!prevShow.value && props.modelValue) {
     populateFromInitial();
-  } else {
-    // closed: clear form to avoid stale values
+  }
+  // detect modal closed -> reset
+  if (prevShow.value && !props.modelValue) {
     resetForm();
   }
+  prevShow.value = Boolean(props.modelValue);
 
-  // 2) Detect changes to initial prop (deepish compare via JSON)
-  let currentInitialJson = null;
+  // deep-ish compare initial prop change
+  let currInitialJson = null;
   try {
-    currentInitialJson = props.initial ? JSON.stringify(props.initial) : null;
+    currInitialJson = props.initial ? JSON.stringify(props.initial) : null;
   } catch {
-    currentInitialJson = props.initial;
+    currInitialJson = props.initial;
   }
-
-  if (currentInitialJson !== prevInitialJson) {
-    // only re-populate if modal currently open (avoid auto-opening)
+  if (currInitialJson !== prevInitialJson) {
     if (props.modelValue) populateFromInitial();
-    prevInitialJson = currentInitialJson;
+    prevInitialJson = currInitialJson;
   }
 });
 
+// file handling
 const onFilesSelected = (e) => {
   const selected = Array.from(e.target.files || []);
-  if (selected.length === 0) return;
+  if (!selected.length) return;
   handleNewFiles(selected);
   e.target.value = "";
 };
@@ -293,10 +307,8 @@ function handleNewFiles(selectedFiles) {
   const images = selectedFiles.filter((f) => f.type?.startsWith("image/"));
   if (!images.length) return;
 
-  const spaceLeft = Math.max(0, MAX_FILES - files.value.length);
-  if (images.length > spaceLeft) {
-    console.warn(`Max files (${MAX_FILES}) — only adding ${spaceLeft} more.`);
-  }
+  // enforce limit based on previews (existing + new)
+  const spaceLeft = Math.max(0, MAX_FILES - previews.value.length);
   const toAdd = images.slice(0, spaceLeft);
 
   for (const f of toAdd) {
@@ -304,9 +316,15 @@ function handleNewFiles(selectedFiles) {
       console.warn(`File ${f.name} exceeds size limit and was skipped.`);
       continue;
     }
-    files.value.push(f);
     const url = URL.createObjectURL(f);
-    previews.value.push({ url, name: f.name, size: f.size });
+    // store file and mark preview as new
+    previews.value.push({
+      url,
+      name: f.name,
+      size: f.size,
+      isNew: true,
+      file: f,
+    });
   }
 }
 
@@ -320,13 +338,14 @@ function triggerFileInput() {
 
 function removePreview(index) {
   const p = previews.value[index];
-  if (p && p.url) {
+  if (!p) return;
+  if (p.isNew && p.url) {
     try {
       URL.revokeObjectURL(p.url);
     } catch {}
   }
+  // remove preview (we keep previews as single source-of-truth)
   previews.value.splice(index, 1);
-  if (files.value && files.value.length > index) files.value.splice(index, 1);
 }
 
 function validate() {
@@ -334,7 +353,6 @@ function validate() {
   return !errors.value.title;
 }
 
-// helper: convert a File to Data URL (returns Promise<string>)
 function fileToDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -342,23 +360,15 @@ function fileToDataURL(file) {
       reader.abort();
       reject(new Error("Problem reading file"));
     };
-    reader.onload = () => {
-      resolve(reader.result); // Data URL string
-    };
+    reader.onload = () => resolve(reader.result);
     reader.readAsDataURL(file);
   });
 }
 
+// submit: build image_path from previews (existing urls + base64 for new)
 async function onSubmit() {
-  // reset UI
   formError.value = null;
-  status.value = "submitting";
-  errorInfo.value = null;
-
   if (!validate()) {
-    status.value = "validation-error";
-    errorInfo.value = { message: "Please fix the form." };
-    // emit validation result if you want parent to react (optional)
     emit("submitted", {
       ok: false,
       status: 400,
@@ -370,63 +380,102 @@ async function onSubmit() {
 
   submitting.value = true;
   try {
-    // convert files -> data URLs (base64)
-    const dataUrlPromises = (files.value || []).map((f) => fileToDataURL(f));
-    const dataUrls = await Promise.all(dataUrlPromises);
+    // debug snapshot
+    console.log(
+      "[DEBUG] onSubmit - previews before build:",
+      previews.value.map((p) => ({
+        name: p.name,
+        isNew: !!p.isNew,
+        hasFile: !!p.file,
+        urlPreview: String(p.url).slice(0, 60),
+      }))
+    );
+
+    // Primary source: previews (existing URLs + newly added files)
+    const finalImages = [];
+
+    // keep existing saved urls (isNew === false)
+    for (const p of previews.value) {
+      if (!p.isNew && p.url) finalImages.push(p.url);
+    }
+
+    // Convert new previews to base64 (if any)
+    const newPreviews = previews.value.filter((p) => p.isNew && p.file);
+    if (newPreviews.length) {
+      try {
+        const base64s = await Promise.all(
+          newPreviews.map((p) => fileToDataURL(p.file))
+        );
+        for (const b of base64s) if (b) finalImages.push(b);
+      } catch (convErr) {
+        console.error(
+          "[DEBUG] Error converting newPreviews to base64:",
+          convErr
+        );
+        // fallthrough to fallback attempt
+      }
+    }
+
+    // FALLBACK: if finalImages still empty, try fileInput.files (raw input element)
+    if (
+      finalImages.length === 0 &&
+      fileInput.value &&
+      fileInput.value.files &&
+      fileInput.value.files.length
+    ) {
+      console.warn(
+        "[DEBUG] finalImages empty - falling back to fileInput.files conversion."
+      );
+      const filesFromInput = Array.from(fileInput.value.files);
+      try {
+        const base64s = await Promise.all(
+          filesFromInput.map((f) => fileToDataURL(f))
+        );
+        for (const b of base64s) if (b) finalImages.push(b);
+      } catch (convErr2) {
+        console.error("[DEBUG] fallback conversion failed:", convErr2);
+      }
+    }
+
+    // FINAL SAFETY: if still empty and user expects an image, at least send empty array instead of undefined
+    // (server-side logic may convert [] -> null; that's okay)
+    console.log("[DEBUG] finalImages count:", finalImages.length);
 
     const payload = {
       title: title.value.trim(),
       priority: priority.value,
       description: description.value.trim(),
-      image_path: dataUrls,
+      image_path: finalImages, // always present (possibly empty array)
     };
 
-    const res = await api.post("/tasks", payload, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 120000,
-    });
+    // DEBUG: show payload BEFORE sending
+    // (for large base64 arrays this will be big — but it's temporary to debug)
+    console.log(
+      "[DEBUG] payload about to send (image count):",
+      payload.image_path.length
+    );
 
-    // success
-    status.value = "success";
-    errorInfo.value = {
-      message: res.data?.message || "Task created",
-      data: res.data,
-    };
+    // SEND: for create or update
+    let res;
+    if (props.initial && props.initial.id) {
+      res = await taskStore.updateTask(props.initial.id, payload);
+      emit("submitted", { ok: true, status: 200, data: res });
+    } else {
+      res = await taskStore.createTask(payload);
+      emit("submitted", { ok: true, status: res?.status ?? 201, data: res });
+    }
 
-    // Emit structured payload for parent to show toast / update UI
-    emit("submitted", {
-      ok: true,
-      status: res.status || 201,
-      message: res.data?.message || "Task created",
-      data: res.data || null,
-    });
-
-    // close modal and reset
-    close();
+    // close modal
+    show.value = false;
   } catch (err) {
-    console.error("create task error:", err);
-
-    // derive useful info for parent
+    console.error("create/update task error:", err);
     const resp = err?.response;
     const code = resp?.status || null;
     const body = resp?.data || null;
     const message =
-      body?.error ||
-      body?.message ||
-      (code === 413 ? "Uploaded images are too large." : err.message) ||
-      "Failed to create task";
-
-    // set local UI state
-    status.value = code === 413 ? "payload-too-large" : "error";
-    errorInfo.value = { message, details: body };
-
-    // Emit structured failure so parent can show a toast or other UI
-    emit("submitted", {
-      ok: false,
-      status: code,
-      message,
-      details: body,
-    });
+      body?.error || body?.message || err.message || "Failed to save task";
+    formError.value = message;
+    emit("submitted", { ok: false, status: code, message, details: body });
   } finally {
     submitting.value = false;
   }
@@ -438,7 +487,7 @@ function close() {
 }
 </script>
 
-<style scoped>
+<style>
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.15s;
