@@ -1,0 +1,107 @@
+* {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.title {
+  text-align: center;
+}
+.container {
+  width: 100%;
+}
+
+.taskForm {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.titlefield {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  width: auto;
+}
+
+.priorityfield {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 5px;
+  width: auto;
+}
+
+.descriptionfield {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  width: auto;
+}
+
+.submitbtn {
+  margin-top: 2rem;
+  background: lightblue;
+  padding: 5px;
+}
+
+.taskItem {
+  padding: 1rem;
+  border: 1px solid #ccc;
+  margin-top: 1rem;
+  border-radius: 6px;
+}
+
+.taskItem h3 {
+  margin: 0;
+}
+
+#taskList {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+}
+.task-card {
+  background: aliceblue;
+  border-radius: 14px;
+  padding: 15px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.task-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-actions button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s ease;
+}
+
+.edit-btn {
+  background: #3498db;
+  color: white;
+}
+.edit-btn:hover {
+  background: #217dbb;
+}
+
+.delete-btn {
+  background: #e74c3c;
+  color: white;
+}
+.delete-btn:hover {
+  background: #c0392b;
+}
